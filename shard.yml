@@ -1,0 +1,23 @@
+name: cryptodiffbot
+version: 0.1.0
+
+authors:
+  - airled <airled@mail.ru>
+
+targets:
+  cryptodiffbot:
+    main: src/cryptodiffbot.cr
+
+crystal: 1.0.0
+
+license: MIT
+
+dependencies:
+  tourmaline:
+    github: protoncr/tourmaline
+    branch: master
+  redis:
+    github: stefanwille/crystal-redis
+    version: ~> 2.7.0
+  halite:
+    github: icyleaf/halite

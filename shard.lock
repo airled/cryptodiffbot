@@ -1,0 +1,26 @@
+version: 2.0
+shards:
+  db:
+    git: https://github.com/crystal-lang/crystal-db.git
+    version: 0.10.1
+
+  halite:
+    git: https://github.com/icyleaf/halite.git
+    version: 0.12.0
+
+  http_proxy:
+    git: https://github.com/mamantoha/http_proxy.git
+    version: 0.8.0+git.commit.affc16af1c21350daf5da865dd212b1ee7b2e9c2
+
+  pool:
+    git: https://github.com/ysbaddaden/pool.git
+    version: 0.2.4
+
+  redis:
+    git: https://github.com/stefanwille/crystal-redis.git
+    version: 2.7.0
+
+  tourmaline:
+    git: https://github.com/protoncr/tourmaline.git
+    version: 0.22.0+git.commit.17539ea6627dcc93e1814ffbf030a8bd64926379
+
