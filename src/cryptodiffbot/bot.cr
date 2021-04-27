@@ -13,51 +13,43 @@ class Cryptodiffbot::Bot < Tourmaline::Client
   JUSTIFIER = " "
   SPLITTER  = '|'
   DASH      = "-"
+  HELP_TEXT = [
+    "Доступные команды:",
+    "/help - список всех команд с описанием",
+    "/set - обновить значения для криптовалюты, параметры: кол-во валюты и общая стоимость покупки в $ (пример: /add BTC 0,1 5000). Если вы добавляете существующую криптовалюту, то новые значения перепишут старые",
+    "/add - прибавить кол-во и стоимость к уже существующей валюте, параметры: кол-во валюты и общая стоимость покупки в $ (пример: /add ETH 0.5 2000). Если криптовалюта в портфеле отсутствует, то команда работает как /set",
+    "/del - удалить криптовалюту из портфеля (пример: /del BTC)",
+    "/s - показать портфель с текущими курсами. Курсы предоставляются сервисом https://nomics.com",
+  ].join("\n")
+  FLOAT_NUM_REGEX = /\d+([.,]\d+)?/
+  INVALID         = "Неверные данные"
+
+  @[Command("help")]
+  def help_command(ctx)
+    ctx.message.respond(HELP_TEXT)
+  end
 
   @[Command("set")]
   def set_command(ctx)
-    name, amount, bought = ctx.text.split(SPACER, 3)
-    amount_float = amount.gsub(',', '.').to_f64
-    spent_float = bought.gsub(',', '.').to_f64
-    coins = get_coins(ctx.message.chat.id)
-    coin_index = coins.index { |coin| coin.name == name }
-    if coin_index
-      coins[coin_index].amount = amount_float
-      coins[coin_index].spent = spent_float
-    else
-      coins << Coin.new(name, amount_float, spent_float)
+    check_input_and_proceed(ctx) do |coin, amount, spent|
+      coin.amount = amount
+      coin.spent = spent
     end
-    DB.set(ctx.message.chat.id, coins.map(&.as_json).to_json)
-    ctx.message.respond(OK)
   end
 
   @[Command("add")]
   def add_command(ctx)
-    name, amount, bought = ctx.text.split(SPACER, 3)
-    amount_float = amount.gsub(',', '.').to_f64
-    spent_float = bought.gsub(',', '.').to_f64
-    coins = get_coins(ctx.message.chat.id)
-    coin_index = coins.index { |coin| coin.name == name }
-    if coin_index
-      coins[coin_index].amount += amount_float
-      coins[coin_index].spent += spent_float
-    else
-      coins << Coin.new(name, amount_float, spent_float)
+    check_input_and_proceed(ctx) do |coin, amount, spent|
+      coin.amount += amount
+      coin.spent += spent
     end
-    DB.set(ctx.message.chat.id, coins.map(&.as_json).to_json)
-    ctx.message.respond(OK)
   end
 
   @[Command("del")]
   def del_command(ctx)
+    return ctx.message.respond("Не указана валюта") if ctx.text.to_s.strip.empty?
     coins = get_coins(ctx.message.chat.id).reject { |coin| coin.name == ctx.text }
     DB.set(ctx.message.chat.id, coins.map(&.as_json).to_json)
-    ctx.message.respond(OK)
-  end
-
-  @[Command("clear")]
-  def clear_command(ctx)
-    DB.set(ctx.message.chat.id, "[]")
     ctx.message.respond(OK)
   end
 
@@ -128,6 +120,26 @@ class Cryptodiffbot::Bot < Tourmaline::Client
     ctx.message.respond("```\n#{rows.join("\n")}\n```", parse_mode: "MarkdownV2")
   end
 
+  private def check_input_and_proceed(ctx, &block)
+    params = ctx.text.split(SPACER, 3).map(&.strip)
+    return ctx.message.respond(INVALID) if params.size != 3
+    return ctx.message.respond(INVALID) if params.any?(&.empty?)
+    name, amount, bought = params
+    return ctx.message.respond(INVALID) unless amount.matches?(FLOAT_NUM_REGEX)
+    return ctx.message.respond(INVALID) unless bought.matches?(FLOAT_NUM_REGEX)
+    amount_float = amount.gsub(',', '.').to_f64
+    spent_float = bought.gsub(',', '.').to_f64
+    coins = get_coins(ctx.message.chat.id)
+    coin_index = coins.index { |coin| coin.name == name }
+    if coin_index
+      yield coins[coin_index], amount_float, spent_float
+    else
+      coins << Coin.new(name, amount_float, spent_float)
+    end
+    DB.set(ctx.message.chat.id, coins.map(&.as_json).to_json)
+    ctx.message.respond(OK)
+  end
+
   private def get_coins(id)
     cached = DB.get(id)
     infos = if (!cached || cached.empty?)
@@ -159,7 +171,7 @@ class Cryptodiffbot::Bot < Tourmaline::Client
 
   private def calculate(coins, rates)
     coins.each do |coin|
-      rate = rates[coin.name]
+      rate = rates[coin.name]? || 0.0
       coin.rate = rate
       coin.current = coin.amount * rate
       coin.profit = coin.current - coin.spent
