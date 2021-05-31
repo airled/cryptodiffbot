@@ -16,10 +16,12 @@ class Cryptodiffbot::Bot < Tourmaline::Client
   HELP_TEXT = [
     "Доступные команды:",
     "/help - список всех команд с описанием",
-    "/set - обновить значения для криптовалюты, параметры: кол-во валюты и общая стоимость покупки в $ (пример: /add BTC 0,1 5000). Если вы добавляете существующую криптовалюту, то новые значения перепишут старые",
-    "/add - прибавить кол-во и стоимость к уже существующей валюте, параметры: кол-во валюты и общая стоимость покупки в $ (пример: /add ETH 0.5 2000). Если криптовалюта в портфеле отсутствует, то команда работает как /set",
+    "/set - обновить значения для криптовалюты, параметры: имя, кол-во и общая стоимость покупки в $ (пример: /set BTC 0,1 5000). Если вы добавляете существующую криптовалюту, то новые значения перепишут старые",
+    "/add - прибавить кол-во и стоимость к уже существующей валюте, параметры: имя, кол-во и общая стоимость покупки в $ (пример: /add ETH 0.5 2000). Если криптовалюта в портфеле отсутствует, то команда работает как /set",
     "/del - удалить криптовалюту из портфеля (пример: /del BTC)",
-    "/s - показать портфель с текущими курсами. Курсы предоставляются сервисом https://nomics.com",
+    "/s - показать портфель с текущими курсами в сокращенном виде",
+    "/sh - показать портфель с текущими курсами в полном виде с разницей",
+    "Курсы предоставляются сервисом https://nomics.com",
   ].join("\n")
   FLOAT_NUM_REGEX = /\d+([.,]\d+)?/
   INVALID         = "Неверные данные"
@@ -54,7 +56,12 @@ class Cryptodiffbot::Bot < Tourmaline::Client
   end
 
   @[Command("s")]
-  def show_command(ctx)
+  def short_show_command(ctx)
+    show_command(ctx, false)
+  end
+
+  @[Command("sh")]
+  def show_command(ctx, full = true)
     coins = get_coins(ctx.message.chat.id)
     return ctx.message.respond("Портфель пуст") if (!coins || coins.empty?)
     coin_names = coins.map(&.name)
@@ -76,21 +83,21 @@ class Cryptodiffbot::Bot < Tourmaline::Client
     dash_row = [
       max_name_size,
       max_amount_size,
-      max_spent_size,
+      full ? max_spent_size : nil,
       max_rate_size,
       max_current_size,
-      max_profit_size,
-    ].map { |size| DASH * size }.join(SPLITTER)
+      full ? max_profit_size : nil,
+    ].compact.map { |size| DASH * size }.join(SPLITTER)
 
     # header row
     rows << [
       "#".ljust(max_name_size, SPACER),
       "Ед.".ljust(max_amount_size, SPACER),
-      "@".rjust(max_spent_size, SPACER),
+      full ? "@".rjust(max_spent_size, SPACER) : nil,
       "≈".rjust(max_rate_size, SPACER),
       "$".rjust(max_current_size, SPACER),
-      "±".rjust(max_profit_size, SPACER),
-    ].join(SPLITTER)
+      full ? "±".rjust(max_profit_size, SPACER) : nil,
+    ].compact.join(SPLITTER)
 
     rows << dash_row
 
@@ -98,11 +105,11 @@ class Cryptodiffbot::Bot < Tourmaline::Client
       rows << [
         coin.name.ljust(max_name_size, SPACER),
         coin.amount.to_s.ljust(max_amount_size, SPACER),
-        coin.spent.round(2).to_s.rjust(max_spent_size, SPACER),
+        full ? coin.spent.round(2).to_s.rjust(max_spent_size, SPACER) : nil,
         coin.rate.round(2).to_s.rjust(max_rate_size, SPACER),
         coin.current.round(2).to_s.rjust(max_current_size, SPACER),
-        coin.profit.round(2).to_s.rjust(max_profit_size, SPACER),
-      ].join(SPLITTER)
+        full ? coin.profit.round(2).to_s.rjust(max_profit_size, SPACER) : nil,
+      ].compact.join(SPLITTER)
     end
 
     rows << dash_row
@@ -111,11 +118,11 @@ class Cryptodiffbot::Bot < Tourmaline::Client
     rows << [
       "∑".ljust(max_name_size, SPACER),
       JUSTIFIER * max_amount_size,
-      spent_all.to_s.rjust(max_spent_size, SPACER),
+      full ? spent_all.to_s.rjust(max_spent_size, SPACER) : nil,
       JUSTIFIER * max_rate_size,
       current_all.to_s.rjust(max_current_size, SPACER),
-      profit_all.to_s.rjust(max_profit_size, SPACER),
-    ].join(SPLITTER)
+      full ? profit_all.to_s.rjust(max_profit_size, SPACER) : nil,
+    ].compact.join(SPLITTER)
 
     ctx.message.respond("```\n#{rows.join("\n")}\n```", parse_mode: "MarkdownV2")
   end
